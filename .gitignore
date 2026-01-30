@@ -1,3 +1,7 @@
+# Build Folders
+build/
+build-*/
+
 # Prerequisites
 *.d
 

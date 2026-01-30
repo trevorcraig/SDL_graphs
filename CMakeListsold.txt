@@ -1,0 +1,34 @@
+cmake_minimum_required(VERSION 3.10)
+project(sdl_graphs C)
+
+# 1. Paths (Assuming SDL3_ttf is in the same parent directory)
+set(SDL3_DIR "D:/libs/SDL3-3.4.0/x86_64-w64-mingw32")
+set(SDL3_TTF_DIR "D:/libs/SDL3_ttf-3.2.2/x86_64-w64-mingw32") 
+
+
+# 2. Include Headers
+include_directories("${SDL3_DIR}/include")
+include_directories("${SDL3_TTF_DIR}/include")
+
+# 3. Link Directories
+link_directories("${SDL3_DIR}/lib")
+link_directories("${SDL3_TTF_DIR}/lib")
+
+# 4. Add Source Files
+add_executable(sdl_graphs main.c sdl_graphs.c)
+
+# 5. Link Libraries (Add SDL3_ttf here)
+target_link_libraries(sdl_graphs SDL3 SDL3_ttf)
+
+# 6. Copy DLLs (Both SDL3 and SDL3_ttf)
+add_custom_command(TARGET sdl_graphs POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    "${SDL3_DIR}/bin/SDL3.dll"
+    "${SDL3_TTF_DIR}/bin/SDL3_ttf.dll"
+    $<TARGET_FILE_DIR:sdl_graphs>)
+
+# 7. Copy Font File (Corrected extension to .ttf)
+add_custom_command(TARGET sdl_graphs POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    "${CMAKE_CURRENT_SOURCE_DIR}/PTC55F.ttf"
+    $<TARGET_FILE_DIR:sdl_graphs>)
