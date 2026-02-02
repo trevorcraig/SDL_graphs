@@ -493,6 +493,50 @@ void render_legend(SDL_Renderer* renderer, TTF_Font* font, Axes* ax) {
         draw_text(renderer, font, s->label, box_x + 35, entry_y, false, (SDL_Color){0,0,0,255});
     }
 }
+/**
+ * @brief Safely deallocates a Figure and all its associated Axes and Series.
+ * * This function performs a deep-clean of the Figure's memory. It frees the 
+ * internal arrays for axes and lines, and destroys the SDL_Window and 
+ * SDL_Renderer associated with the figure.
+ * * @param fig Pointer to the Figure to be destroyed.
+ * @note This does NOT free the raw data arrays (x, y) passed to plot(), 
+ * as those are owned by the caller.
+ */
+void destroy_figure(Figure* fig) {
+    if (!fig) return;
+
+    // 1. Loop through each Axes
+    for (int i = 0; i < fig->axes_count; i++) {
+        Axes* ax = &fig->axes[i];
+
+        // 2. Loop through each Series in the Axes
+        for (int j = 0; j < ax->line_count; j++) {
+            // If you later decide to malloc the x/y arrays inside the lib, 
+            // you'd free them here. Currently, they are user-owned pointers.
+        }
+        
+        // Free the array of Series
+        if (ax->lines) {
+            free(ax->lines);
+        }
+    }
+
+    // 3. Free the array of Axes
+    if (fig->axes) {
+        free(fig->axes);
+    }
+
+    // 4. Clean up SDL Resources
+    if (fig->renderer) {
+        SDL_DestroyRenderer(fig->renderer);
+    }
+    if (fig->window) {
+        SDL_DestroyWindow(fig->window);
+    }
+
+    // 5. Free the Figure itself
+    free(fig);
+}
 
 // Setters
 

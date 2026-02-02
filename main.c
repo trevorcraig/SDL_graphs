@@ -72,7 +72,7 @@ int main(int argc, char* argv[]) {
         SDL_Delay(16); // ~60 FPS
     }
 
-    // Cleanup (Simplified for example)
+    destroy_figure(fig); // Needed something like this if the user creates multiple windows
     SDL_DestroyRenderer(fig->renderer);
     SDL_DestroyWindow(fig->window);
     SDL_Quit();

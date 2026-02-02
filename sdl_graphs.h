@@ -77,5 +77,6 @@ void set_label(Axes* ax, int series_idx, const char* name);
 void set_xlabel(Axes* ax, const char* label);
 void set_ylabel(Axes* ax, const char* label);
 void set_title(Axes* ax, const char* title);
+void destroy_figure(Figure* fig);
 
 #endif
