@@ -39,7 +39,10 @@ typedef struct {
     SDL_FRect rect;       // Position on screen
     Series* lines;
     int line_count;
+    // Titles
     const char* title;
+    const char* x_label;
+    const char* y_label;
     float x_min, x_max;   // Data limits
     float y_min, y_max;
     // Position relative to window (0.0 to 1.0)
@@ -71,5 +74,8 @@ void DrawDashedThickLine(SDL_Renderer* renderer, float x1, float y1, float x2, f
 void render_legend(SDL_Renderer* renderer, TTF_Font* font, Axes* ax);
 void set_legend(Axes* ax, bool enabled);
 void set_label(Axes* ax, int series_idx, const char* name);
+void set_xlabel(Axes* ax, const char* label);
+void set_ylabel(Axes* ax, const char* label);
+void set_title(Axes* ax, const char* title);
 
 #endif

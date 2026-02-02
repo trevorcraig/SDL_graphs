@@ -33,6 +33,11 @@ int main(int argc, char* argv[]) {
     scatter(&fig->axes[0], x_data, y_data, n, green, 8.0f);
     set_legend(&fig->axes[0], true); // Turn it on!
 
+    // Setting Titles
+    set_title(&fig->axes[0], "Temperature Over Time");
+    set_xlabel(&fig->axes[0], "Time (seconds)");
+    set_ylabel(&fig->axes[0], "Celsius");
+
     // 4. Main Loop (Simple plt.show() logic)
     bool running = true;
     SDL_Event event;
