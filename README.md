@@ -50,7 +50,7 @@ Functions for initializing the window context and ensuring the plot remains resp
 
 | Function | Description |
 | :--- | :--- |
-| `subplots(title, w, h)` | Initializes a `Figure` with a resizable SDL window, renderer, and one default `Axes`. |
+| `subplots(title, w, h, num_axes)` | Initializes a `Figure` with a resizable SDL window, renderer, and specify number of `Axes`. |
 | `update_layout(fig, w, h)` | Recalculates margins and axes sizes. Call this whenever an `SDL_EVENT_WINDOW_RESIZED` event occurs. |
 
 
@@ -113,7 +113,7 @@ These functions handle the heavy lifting of the rendering pipeline.
 ### Quick Start Example
 ```c
 // Create a 800x600 window
-Figure* fig = subplots("Live Telemetry", 800, 600);
+Figure* fig = subplots("Live Telemetry", 800, 600,1);
 
 // Customize the look
 set_xlabel(fig->axes, "Time (s)");

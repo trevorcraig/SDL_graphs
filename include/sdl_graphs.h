@@ -60,7 +60,7 @@ typedef struct {
     int axes_count;
 } Figure;
 
-Figure* subplots(const char* title, int width, int height);
+Figure* subplots(const char* title, int width, int height,int num_axes);
 void plot(Axes* ax, float* x, float* y, int count, SDL_Color color);
 void scatter(Axes* ax, float* x, float* y, int count, SDL_Color color, float size);
 void render_axes(SDL_Renderer* renderer, TTF_Font* font, Axes* ax);

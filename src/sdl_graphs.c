@@ -14,33 +14,78 @@
  * @param title  The text displayed in the window's title bar and as the default plot title.
  * @param width  The initial width of the window in pixels.
  * @param height The initial height of the window in pixels.
+ * @param num_axes The number of axes we are going to plot.
  * * @return A pointer to the newly allocated Figure object. 
  * @note   The returned Figure contains one Axes initialized with infinite min/max 
  * limits to allow the first call to plot() or scatter() to set the scale.
  */
-Figure* subplots(const char* title, int width, int height) {
+Figure* subplots(const char* title, int width, int height, int num_axes) {
     Figure* fig = malloc(sizeof(Figure));
+    if (!fig) return NULL;
+
     fig->window = SDL_CreateWindow(title, width, height, SDL_WINDOW_RESIZABLE);
     fig->renderer = SDL_CreateRenderer(fig->window, NULL);
     fig->font = TTF_OpenFont("PTC55F.ttf", 16);
     
-    // Create one default Axes
-    fig->axes = malloc(sizeof(Axes));
-    fig->axes_count = 1;
-    fig->axes[0].rect = (SDL_FRect){ 80, 60, width - 120, height - 120 };
-    fig->axes[0].line_count = 0;
-    fig->axes[0].lines = NULL;
-    fig->axes[0].title = title;
-    fig->axes[0].x_label = NULL;
-    fig->axes[0].y_label = NULL;        
-    fig->axes[0].show_grid = false;
-    fig->axes[0].show_legend = false;
-    // Only for testing and may have to change later
-    fig->axes[0].x_min = 1e38;  fig->axes[0].x_max = -1e38; 
-    fig->axes[0].y_min = 1e38;  fig->axes[0].y_max = -1e38;
+    fig->axes_count = num_axes;
+    fig->axes = malloc(sizeof(Axes) * num_axes);
     
+    for(int i = 0; i < num_axes; i++) {
+        fig->axes[i].line_count = 0;
+        fig->axes[i].lines = NULL;
+        fig->axes[i].title = title; // Note: All subplots start with the Figure title
+        fig->axes[i].x_label = NULL;
+        fig->axes[i].y_label = NULL;        
+        fig->axes[i].show_grid = false;
+        fig->axes[i].show_legend = false;
+        
+        // Corrected indexing here:
+        fig->axes[i].x_min = 1e38f;  fig->axes[i].x_max = -1e38f; 
+        fig->axes[i].y_min = 1e38f;  fig->axes[i].y_max = -1e38f;
+    }
+
+    update_layout(fig, width, height); 
     return fig;
 }
+
+
+// Figure* subplots(const char* title, int width, int height, int num_axes) {
+//     Figure* fig = malloc(sizeof(Figure));
+//     fig->window = SDL_CreateWindow(title, width, height, SDL_WINDOW_RESIZABLE);
+//     fig->renderer = SDL_CreateRenderer(fig->window, NULL);
+//     fig->font = TTF_OpenFont("PTC55F.ttf", 16);
+    
+//     // Create one default Axes
+//     fig->axes_count = num_axes;
+//     fig->axes = malloc(sizeof(Axes) * num_axes);
+//     for(int i = 0; i < num_axes; i++) {
+//         fig->axes[i].rect = (SDL_FRect){ 80, 60, width - 120, height - 120 };
+//         fig->axes[i].line_count = 0;
+//         fig->axes[i].lines = NULL;
+//         fig->axes[i].title = title;
+//         fig->axes[i].x_label = NULL;
+//         fig->axes[i].y_label = NULL;        
+//         fig->axes[i].show_grid = false;
+//         fig->axes[i].show_legend = false;
+//         // Only for testing and may have to change later
+//         fig->axes[i].x_min = 1e38;  fig->axes[i].x_max = -1e38; 
+//         fig->axes[i].y_min = 1e38;  fig->axes[i].y_max = -1e38;
+//     }
+
+//     // fig->axes[0].rect = (SDL_FRect){ 80, 60, width - 120, height - 120 };
+//     // fig->axes[0].line_count = 0;
+//     // fig->axes[0].lines = NULL;
+//     // fig->axes[0].title = title;
+//     // fig->axes[0].x_label = NULL;
+//     // fig->axes[0].y_label = NULL;        
+//     // fig->axes[0].show_grid = false;
+//     // fig->axes[0].show_legend = false;
+//     // // Only for testing and may have to change later
+//     // fig->axes[0].x_min = 1e38;  fig->axes[0].x_max = -1e38; 
+//     // fig->axes[0].y_min = 1e38;  fig->axes[0].y_max = -1e38;
+//     update_layout(fig, width, height); // Get proper scaling
+//     return fig;
+// }
 /**
  * @brief Adds a line plot to the specified Axes.
  * * This function registers a new data series to be drawn as a continuous line. 
@@ -66,6 +111,7 @@ void plot(Axes* ax, float* x, float* y, int count, SDL_Color color) {
     newLine->type = PLOT_LINE; 
     newLine->marker_size = 0;
     newLine->thickness = 2.0f;
+    newLine->style=STYLE_SOLID;
     ax->line_count++;
     strncpy(newLine->label, "Series", 32);
 
@@ -291,16 +337,47 @@ void draw_text(SDL_Renderer* renderer, TTF_Font* font, const char* text, float x
  * X-axis labels and titles.
  */
 void update_layout(Figure* fig, int window_w, int window_h) {
+    if (fig->axes_count <= 0) return;
+
+    // 1. Determine Grid Dimensions
+    int cols = (fig->axes_count > 1) ? 2 : 1; 
+    int rows = (fig->axes_count + cols - 1) / cols;
+
+    // 2. Calculate individual cell size
+    float cell_w = (float)window_w / cols;
+    float cell_h = (float)window_h / rows;
+
     for (int i = 0; i < fig->axes_count; i++) {
         Axes* ax = &fig->axes[i];
-        
-        // Example: 15% margins
-        ax->rect.x = window_w * 0.15f;
-        ax->rect.y = window_h * 0.15f;
-        ax->rect.w = window_w * 0.70f;
-        ax->rect.h = window_h * 0.65f; // Leave more room at bottom for labels
+
+        int r = i / cols;
+        int c = i % cols;
+
+        // 3. Dynamic Padding
+        // We need space for Y-axis labels (left) and X-axis labels (bottom)
+        float pad_left   = cell_w * 0.12f; // Room for Y-axis numbers
+        float pad_right  = cell_w * 0.05f; // Small gap on right
+        float pad_top    = cell_h * 0.10f; // Room for Title
+        float pad_bottom = cell_h * 0.15f; // Room for X-axis labels
+
+        // 4. Set the Rectangle
+        ax->rect.x = (c * cell_w) + pad_left;
+        ax->rect.y = (r * cell_h) + pad_top;
+        ax->rect.w = cell_w - (pad_left + pad_right);
+        ax->rect.h = cell_h - (pad_top + pad_bottom);
     }
 }
+// void update_layout(Figure* fig, int window_w, int window_h) {
+//     for (int i = 0; i < fig->axes_count; i++) {
+//         Axes* ax = &fig->axes[i];
+        
+//         // Example: 15% margins
+//         ax->rect.x = window_w * 0.15f;
+//         ax->rect.y = window_h * 0.15f;
+//         ax->rect.w = window_w * 0.70f;
+//         ax->rect.h = window_h * 0.65f; // Leave more room at bottom for labels
+//     }
+// }
 
 /**
  * @brief Renders a line between two points using a specific stroke style.
