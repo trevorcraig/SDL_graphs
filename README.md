@@ -52,6 +52,7 @@ Functions for initializing the window context and ensuring the plot remains resp
 | :--- | :--- |
 | `subplots(title, w, h, num_axes)` | Initializes a `Figure` with a resizable SDL window, renderer, and specify number of `Axes`. |
 | `update_layout(fig, w, h)` | Recalculates margins and axes sizes. Call this whenever an `SDL_EVENT_WINDOW_RESIZED` event occurs. |
+| `show(fig)` | Enters a blocking event loop that handles rendering and window events. Automatically calls destroy_figure() on exit. |
 
 
 
@@ -123,3 +124,6 @@ set_grid(fig->axes, true);
 // Plot data (x_vals and y_vals are float arrays)
 plot(fig->axes, x_vals, y_vals, 500, (SDL_Color){0, 255, 0, 255});
 set_label(fig->axes, 0, "Battery A");
+
+show(fig);
+```

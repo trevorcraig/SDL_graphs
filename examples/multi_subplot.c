@@ -24,38 +24,8 @@ int main(int argc, char* argv[]) {
     plot(&fig->axes[1], x_data, y_data, 4, (SDL_Color){255, 50, 50, 255});
     set_title(&fig->axes[1], "Pressure");
     set_grid(&fig->axes[1], true);
-
-    // 4. Main Loop
-    bool running = true;
-    SDL_Event event;
-
-    while (running) {
-        while (SDL_PollEvent(&event)) {
-            if (event.type == SDL_EVENT_QUIT) {
-                running = false;
-            } 
-            // ONLY update layout when window changes
-            if (event.type == SDL_EVENT_WINDOW_RESIZED) {
-                update_layout(fig, event.window.data1, event.window.data2);
-            }
-        }
-
-        // Clear Screen
-        SDL_SetRenderDrawColor(fig->renderer, 255, 255, 255, 255);
-        SDL_RenderClear(fig->renderer);
-
-        // Draw all Axes
-        for(int i = 0; i < fig->axes_count; i++) {
-            // Make sure fig->font is actually loaded in subplots()!
-            render_axes(fig->renderer, fig->font, &fig->axes[i]);
-        }
-
-        SDL_RenderPresent(fig->renderer);
-        SDL_Delay(16); 
-    }
-
-    // FINAL CLEANUP
-    destroy_figure(fig); // This handles Window and Renderer too!
+    
+    show(fig);
     TTF_Quit();
     SDL_Quit();
     return 0;

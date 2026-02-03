@@ -48,35 +48,7 @@ int main(int argc, char* argv[]) {
     set_xlabel(&fig->axes[0], "Time (seconds)");
     set_ylabel(&fig->axes[0], "Celsius");
     
-
-    // 4. Main Loop (Simple plt.show() logic)
-    bool running = true;
-    SDL_Event event;
-
-    while (running) {
-
-        while (SDL_PollEvent(&event)) {
-            if (event.type == SDL_EVENT_QUIT) {
-                running = false;
-            } 
-        }
-        int w, h;
-        SDL_GetRenderOutputSize(fig->renderer, &w, &h);
-        update_layout(fig, w, h);
-        // Clear Screen
-        SDL_SetRenderDrawColor(fig->renderer, 255, 255, 255, 255); // White background
-        SDL_RenderClear(fig->renderer);
-
-        // Draw our Objects
-        for(int i = 0; i < fig->axes_count; i++) {
-            render_axes(fig->renderer, fig->font, &fig->axes[i]);
-        }
-
-        SDL_RenderPresent(fig->renderer);
-        SDL_Delay(16); // ~60 FPS
-    }
-
-    destroy_figure(fig); // This handles Window and Renderer too!
+    show(fig);
     TTF_Quit();
     SDL_Quit();
     return 0;

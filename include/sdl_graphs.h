@@ -78,5 +78,6 @@ void set_xlabel(Axes* ax, const char* label);
 void set_ylabel(Axes* ax, const char* label);
 void set_title(Axes* ax, const char* title);
 void destroy_figure(Figure* fig);
+void show(Figure* fig);
 
 #endif
