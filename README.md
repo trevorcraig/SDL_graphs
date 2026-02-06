@@ -19,25 +19,35 @@ A lightweight, C-based graphing library for **SDL3**, designed to bring the simp
 
 ---
 
+### The Newest!
+![Tool Bar Support](docs/ToolBarSupport.png)
+* **Change Graphs Dynamically**: Line weight too little? Actually Wanted dashes? Got you covered.
+* **Save The Figure**: Want the figure for presentation? Well now you can save it! Pathing coming soon.
+
+
+
 ## 🛠 Build Instructions
 
 ### Prerequisites
 * [SDL3](https://github.com/libsdl-org/SDL)
 * [SDL3_ttf](https://github.com/libsdl-org/SDL_ttf)
+* [SDL3_image](https://github.com/libsdl-org/SDL_image)
 * CMake 3.10+
 * A C compiler (GCC, Clang, or MSVC)
 
 ### Compiling
 Since this library relies on local paths for SDL3, use the following CMake commands to point to your library installations:
 For me it was
-cmake -B build -DSDL3_DIR="D:/libs/SDL3-3.4.0/x86_64-w64-mingw32" -DSDL3_TTF_DIR="D:/libs/SDL3_ttf-3.2.2/x86_64-w64-mingw32"
+cmake -B build -DSDL3_DIR="D:/libs/SDL3-3.4.0/x86_64-w64-mingw32" -DSDL3_TTF_DIR="D:/libs/SDL3_ttf-3.2.2/x86_64-w64-mingw32" -DSDL3_IMAGE_DIR="D:/libs/SDL3_image-3.4.0/x86_64-w64-mingw32"
+
 cmake --build build
 
 ```bash
 # 1. Configure the build
 cmake -B build \
   -DSDL3_DIR="C:/Path/To/SDL3" \
-  -DSDL3_TTF_DIR="C:/Path/To/SDL3_ttf"
+  -DSDL3_TTF_DIR="C:/Path/To/SDL3_ttf"\
+  -DSDL3_IMAGE_DIR="C:/Path/To/SDL3_image"
 
 # 2. Build the project
 cmake --build build

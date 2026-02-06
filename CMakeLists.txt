@@ -8,21 +8,24 @@ endif()
 if(NOT SDL3_TTF_DIR)
     set(SDL3_TTF_DIR $ENV{SDL3_TTF_DIR} CACHE PATH "Path to SDL3_ttf root directory")
 endif()
-
+if(NOT SDL3_IMAGE_DIR)
+    set(SDL3_IMAGE_DIR $ENV{SDL3_IMAGE_DIR} CACHE PATH "Path to SDL3_image root directory")
+endif()
 # 2. Setup Include Paths
 # We add "include" to the list so #include "sdl_graphs.h" works from anywhere
 include_directories(
     "include" 
     "${SDL3_DIR}/include" 
     "${SDL3_TTF_DIR}/include"
+    "${SDL3_IMAGE_DIR}/include"
 )
-link_directories("${SDL3_DIR}/lib" "${SDL3_TTF_DIR}/lib")
+link_directories("${SDL3_DIR}/lib" "${SDL3_TTF_DIR}/lib" "${SDL3_IMAGE_DIR}/lib")
 
 # --- THE LIBRARY PART ---
 
 # 3. Reference the new 'src' path
-add_library(sdl_graphs_lib STATIC src/sdl_graphs.c)
-target_link_libraries(sdl_graphs_lib SDL3 SDL3_ttf m)
+add_library(sdl_graphs_lib STATIC src/sdl_graphs.c src/sdl_toolbar.c)
+target_link_libraries(sdl_graphs_lib SDL3 SDL3_ttf SDL3_image m)
 
 # --- THE EXAMPLES PART ---
 
@@ -35,6 +38,7 @@ function(add_graph_example name source)
             COMMAND ${CMAKE_COMMAND} -E copy_if_different
             "${SDL3_DIR}/bin/SDL3.dll"
             "${SDL3_TTF_DIR}/bin/SDL3_ttf.dll"
+            "${SDL3_IMAGE_DIR}/bin/SDL3_image.dll"
             $<TARGET_FILE_DIR:${name}>)
     endif()
 
@@ -51,3 +55,4 @@ add_graph_example(demo_main examples/main.c)
 add_graph_example(demo_scatter_plot examples/scatter_plot.c)
 add_graph_example(demo_simple examples/simple.c)
 add_graph_example(demo_grid examples/grid.c)
+add_graph_example(demo_toolbar examples/simple_toolbar.c)

@@ -1,8 +1,10 @@
 #include <SDL3/SDL.h>
 #include <SDL3_ttf/SDL_ttf.h>
+#include <SDL3_image/SDL_image.h>
 #include <stdlib.h>
 #include <stdio.h>
 #include "sdl_graphs.h"
+#include "sdl_toolbar.h"
 #include <math.h>
 
 /**
@@ -26,6 +28,7 @@ Figure* subplots(const char* title, int width, int height, int num_axes) {
     fig->window = SDL_CreateWindow(title, width, height, SDL_WINDOW_RESIZABLE);
     fig->renderer = SDL_CreateRenderer(fig->window, NULL);
     fig->font = TTF_OpenFont("PTC55F.ttf", 16);
+    fig->toolbar = NULL;
     
     fig->axes_count = num_axes;
     fig->axes = malloc(sizeof(Axes) * num_axes);
@@ -694,31 +697,76 @@ void show(Figure* fig) {
 
     bool running = true;
     SDL_Event event;
+    Toolbar* tb = (Toolbar*)fig->toolbar; // Cast the pointer
+    
 
     while (running) {
         while (SDL_PollEvent(&event)) {
+            // Handle Global Quit
             if (event.type == SDL_EVENT_QUIT) {
                 running = false;
             }
-            // Handing resizing automatically inside show
-            if (event.type == SDL_EVENT_WINDOW_RESIZED) {
-                update_layout(fig, event.window.data1, event.window.data2);
+            // For multiwindow support
+            if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) {
+                // If the main graph window is closed, shut down the whole program
+                if (event.window.windowID == SDL_GetWindowID(fig->window)) {
+                    running = false;
+                }
+                // If the toolbar window is closed, maybe just hide it? 
+                // Or for now, let's just close the whole thing:
+                if (tb && event.window.windowID == SDL_GetWindowID(tb->window)) {
+                    running = false; 
+                }
+            }
+            if (tb != NULL) {
+                handle_toolbar_events(tb, &event);
+            }
+
+            // Route events to Graph Window (Resizing)
+            if (event.type == SDL_EVENT_WINDOW_RESIZED && 
+                event.window.windowID == SDL_GetWindowID(SDL_GetWindowFromID(event.window.windowID))) {
+                // Only resize if the event came from the Graph Window
+                if (event.window.windowID == SDL_GetWindowID(fig->window)) {
+                    update_layout(fig, event.window.data1, event.window.data2);
+                }
             }
         }
 
-        // Clear Background
+        // --- RENDER GRAPH WINDOW ---
         SDL_SetRenderDrawColor(fig->renderer, 255, 255, 255, 255);
         SDL_RenderClear(fig->renderer);
-
-        // Render all subplots
         for (int i = 0; i < fig->axes_count; i++) {
             render_axes(fig->renderer, fig->font, &fig->axes[i]);
         }
-
         SDL_RenderPresent(fig->renderer);
-        SDL_Delay(16); // Cap at ~60 FPS
+
+        // --- RENDER TOOLBAR WINDOW ---
+        if (tb != NULL) {
+            render_toolbar(tb, fig->font);
+        }
+
+        SDL_Delay(16);
     }
 
-    // Clean up when the window is closed
+    // Clean up
+    if (tb != NULL) destroy_toolbar(tb);
     destroy_figure(fig);
+}
+
+void save_figure_as_png(Figure* fig, const char* filename) {
+    // 1. Grab the pixels from the renderer into a surface
+    // NULL reads the entire viewport
+    SDL_Surface* surface = SDL_RenderReadPixels(fig->renderer, NULL);
+    
+    if (surface) {
+        // 2. Save using SDL_image's PNG function
+        if (IMG_SavePNG(surface, filename)) {
+            printf("Graph saved successfully to %s\n", filename);
+        } else {
+            fprintf(stderr, "Failed to save PNG: %s\n", SDL_GetError());
+        }
+        SDL_DestroySurface(surface);
+    } else {
+        fprintf(stderr, "Failed to read pixels: %s\n", SDL_GetError());
+    }
 }

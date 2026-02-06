@@ -58,6 +58,7 @@ typedef struct {
     TTF_Font* font;
     Axes* axes;
     int axes_count;
+    void* toolbar;
 } Figure;
 
 Figure* subplots(const char* title, int width, int height,int num_axes);
@@ -79,5 +80,6 @@ void set_ylabel(Axes* ax, const char* label);
 void set_title(Axes* ax, const char* title);
 void destroy_figure(Figure* fig);
 void show(Figure* fig);
+void save_figure_as_png(Figure* fig, const char* filename);
 
 #endif
