@@ -753,6 +753,18 @@ void show(Figure* fig) {
     destroy_figure(fig);
 }
 
+/**
+ * @brief Captures the current state of the graph renderer and saves it as a PNG file.
+ * * This function performs a screen capture of the main figure window by:
+ * 1. Reading the pixel data directly from the GPU renderer's current viewport.
+ * 2. Converting that data into an intermediate SDL_Surface.
+ * 3. Utilizing SDL_image's PNG export functionality to write the file to disk.
+ * * @param fig Pointer to the Figure instance whose content should be saved.
+ * @param filename The destination path and name of the file (e.g., "output.png").
+ * * @note This operation is performed on the current back buffer. For best results, 
+ * ensure the figure has been fully rendered before calling this function.
+ * @warning This function requires the SDL_image library to be initialized.
+ */
 void save_figure_as_png(Figure* fig, const char* filename) {
     // 1. Grab the pixels from the renderer into a surface
     // NULL reads the entire viewport

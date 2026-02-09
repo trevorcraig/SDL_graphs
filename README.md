@@ -17,12 +17,14 @@ A lightweight, C-based graphing library for **SDL3**, designed to bring the simp
     * Built-in Legend support with auto-labeling.
     * Axis titles (`xlabel`, `ylabel`) and main figure titles.
 
+### 🖥️ Interactive Toolbar (Inspector)
+![Tool Bar Support](docs/ToolBarSupport.png)
+* **Live Styling**: Change line weight, color, and styles (Dashed/Dotted) in real-time.
+* **Line Navigator**: Use the `<` and `>` arrows to switch focus between multiple data series on a single plot.
+* **Global Controls**: Toggle grids and figure-wide settings.
+* **Instant Export**: Save your finalized figure to PNG with one click.
 ---
 
-### The Newest!
-![Tool Bar Support](docs/ToolBarSupport.png)
-* **Change Graphs Dynamically**: Line weight too little? Actually Wanted dashes? Got you covered.
-* **Save The Figure**: Want the figure for presentation? Well now you can save it! Pathing coming soon.
 
 
 
@@ -62,7 +64,7 @@ Functions for initializing the window context and ensuring the plot remains resp
 | :--- | :--- |
 | `subplots(title, w, h, num_axes)` | Initializes a `Figure` with a resizable SDL window, renderer, and specify number of `Axes`. |
 | `update_layout(fig, w, h)` | Recalculates margins and axes sizes. Call this whenever an `SDL_EVENT_WINDOW_RESIZED` event occurs. |
-| `show(fig)` | Enters a blocking event loop that handles rendering and window events. Automatically calls destroy_figure() on exit. |
+| `show(fig)` | nters the main event loop. Automatically manages the Toolbar window if fig->toolbar is assigned. Handles window closing and resource cleanup. |
 
 
 
@@ -136,4 +138,14 @@ plot(fig->axes, x_vals, y_vals, 500, (SDL_Color){0, 255, 0, 255});
 set_label(fig->axes, 0, "Battery A");
 
 show(fig);
+```
+
+
+## 🛠️ Adding a Toolbar
+Integrating the control panel is as simple as:
+```c
+Figure* fig = subplots("Experiment 1", 800, 600, 1);
+fig->toolbar = create_toolbar(fig); // That's it!
+show(fig);
+
 ```

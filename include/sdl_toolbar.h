@@ -28,6 +28,10 @@ typedef struct {
     GraphButton grid_toggle;
     GraphButton save_button;
     bool running;
+    int active_axes_idx; 
+    int active_line_idx;
+    GraphButton next_line_btn;
+    GraphButton prev_line_btn;
 } Toolbar;
 
 // Initializes and opens the small control window
