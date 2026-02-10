@@ -24,12 +24,17 @@
 Figure* subplots(const char* title, int width, int height, int num_axes) {
     Figure* fig = malloc(sizeof(Figure));
     if (!fig) return NULL;
-
     fig->window = SDL_CreateWindow(title, width, height, SDL_WINDOW_RESIZABLE);
-    fig->renderer = SDL_CreateRenderer(fig->window, NULL);
+    // Left this for future look back in case nothing connects
+    // printf("Available renderer drivers:\n");
+    // for (int i = 0; i < SDL_GetNumRenderDrivers(); i++) {
+    //     printf("%d. %s\n", i + 1, SDL_GetRenderDriver(i));
+    // }
+    // fig->renderer = SDL_CreateRenderer(fig->window, "direct3d12"); //was NULL orginally but direct3d11 which has an issue
+    SDL_SetHint(SDL_HINT_RENDER_DRIVER, "direct3d12"); //direct3d11 has an issue that causes ocassional crashes
+    fig->renderer = SDL_CreateRenderer(fig->window, NULL); //opengl is the best option
     fig->font = TTF_OpenFont("PTC55F.ttf", 16);
     fig->toolbar = NULL;
-    
     fig->axes_count = num_axes;
     fig->axes = malloc(sizeof(Axes) * num_axes);
     
@@ -708,14 +713,15 @@ void show(Figure* fig) {
             }
             // For multiwindow support
             if (event.type == SDL_EVENT_WINDOW_CLOSE_REQUESTED) {
-                // If the main graph window is closed, shut down the whole program
+                // 1. Check main window (Safe, because fig always exists)
                 if (event.window.windowID == SDL_GetWindowID(fig->window)) {
                     running = false;
                 }
-                // If the toolbar window is closed, maybe just hide it? 
-                // Or for now, let's just close the whole thing:
-                if (tb && event.window.windowID == SDL_GetWindowID(tb->window)) {
-                    running = false; 
+                // 2. ONLY check toolbar if tb is NOT NULL
+                else if (tb != NULL && tb->window != NULL) {
+                    if (event.window.windowID == SDL_GetWindowID(tb->window)) {
+                        running = false; 
+                    }
                 }
             }
             if (tb != NULL) {
@@ -723,9 +729,7 @@ void show(Figure* fig) {
             }
 
             // Route events to Graph Window (Resizing)
-            if (event.type == SDL_EVENT_WINDOW_RESIZED && 
-                event.window.windowID == SDL_GetWindowID(SDL_GetWindowFromID(event.window.windowID))) {
-                // Only resize if the event came from the Graph Window
+            if (event.type == SDL_EVENT_WINDOW_RESIZED) {
                 if (event.window.windowID == SDL_GetWindowID(fig->window)) {
                     update_layout(fig, event.window.data1, event.window.data2);
                 }
@@ -749,7 +753,7 @@ void show(Figure* fig) {
     }
 
     // Clean up
-    if (tb != NULL) destroy_toolbar(tb);
+    if (tb != NULL) destroy_toolbar(tb); //Destroy figure already has destroy_toolbar
     destroy_figure(fig);
 }
 
