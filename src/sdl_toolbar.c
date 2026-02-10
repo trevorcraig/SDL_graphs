@@ -38,16 +38,16 @@ Toolbar* create_toolbar(Figure* target) {
     tb->window = SDL_CreateWindow("Graph Controls", 250, 500, 0);
     tb->renderer = SDL_CreateRenderer(tb->window, NULL);
 
-    tb->prev_line_btn.rect = (SDL_FRect){25, 10, 40, 30};
+    tb->prev_line_btn.rect = (SDL_FRect){25, 50, 40, 30};
     tb->prev_line_btn.label = "<";
 
-    tb->next_line_btn.rect = (SDL_FRect){185, 10, 40, 30};
+    tb->next_line_btn.rect = (SDL_FRect){185, 50, 40, 30};
     tb->next_line_btn.label = ">";
 
     // Define 3 buttons for Line Styles
     const char* labels[] = {"Solid", "Dashed", "Dotted"};
     for (int i = 0; i < 3; i++) {
-        tb->buttons[i].rect = (SDL_FRect){25, 50 + (i * 60), 200, 40};
+        tb->buttons[i].rect = (SDL_FRect){25, 90 + (i * 50), 200, 40};
         tb->buttons[i].color = (SDL_Color){100, 100, 100, 255};
         tb->buttons[i].label = labels[i];
         tb->buttons[i].action_id = i;
@@ -83,11 +83,28 @@ Toolbar* create_toolbar(Figure* target) {
  * @param font The TTF_Font used for rendering all labels and button text.
  */
 void render_toolbar(Toolbar* tb, TTF_Font* font) {
+    Axes* current_ax = &tb->target_fig->axes[tb->active_axes_idx];
+    if (tb->active_line_idx >= current_ax->line_count) {
+        tb->active_line_idx = (current_ax->line_count > 0) ? current_ax->line_count - 1 : 0;
+    }
     SDL_SetRenderDrawColor(tb->renderer, 240, 240, 240, 255);
     SDL_RenderClear(tb->renderer);
 
     SDL_Color black = {0, 0, 0, 255};
     Axes* cur_ax = &tb->target_fig->axes[tb->active_axes_idx];
+
+    // --- SECTION 1: GRAPH NAVIGATOR (Top Row) ---
+    SDL_SetRenderDrawColor(tb->renderer, 180, 180, 180, 255); // Slightly different gray
+    SDL_FRect prev_ax_rect = { 25, 10, 30, 25 };
+    SDL_FRect next_ax_rect = { 195, 10, 30, 25 };
+    SDL_RenderFillRect(tb->renderer, &prev_ax_rect);
+    SDL_RenderFillRect(tb->renderer, &next_ax_rect);
+    draw_text(tb->renderer, font, "<", prev_ax_rect.x + 15, prev_ax_rect.y + 15, false, black);
+    draw_text(tb->renderer, font, ">", next_ax_rect.x + 15, next_ax_rect.y + 15, false, black);
+
+    char ax_text[32];
+    sprintf(ax_text, "Graph %d / %d", tb->active_axes_idx + 1, tb->target_fig->axes_count);
+    draw_text(tb->renderer, font, ax_text, 112, 22, false, black);    
 
     // --- Render Line Navigator ---
     SDL_SetRenderDrawColor(tb->renderer, 200, 200, 200, 255);
@@ -99,7 +116,7 @@ void render_toolbar(Toolbar* tb, TTF_Font* font) {
     // Draw Status Label: "Line 1 / 3"
     char status_text[32];
     sprintf(status_text, "Line %d / %d", tb->active_line_idx + 1, cur_ax->line_count);
-    draw_text(tb->renderer, font, status_text, 112, 35, false, black);
+    draw_text(tb->renderer, font, status_text, 112, 60, false, black);
 
     // 1. Render Buttons
     for (int i = 0; i < 3; i++) {
@@ -193,6 +210,7 @@ void render_toolbar(Toolbar* tb, TTF_Font* font) {
  * responds to interactions within its own window.
  */
 void handle_toolbar_events(Toolbar* tb, SDL_Event* event) {
+    if (!tb || !event) return;
     // 1. BUTTON CLICKS (Style)
     if (event->type == SDL_EVENT_MOUSE_BUTTON_DOWN) {
         if (event->button.windowID != SDL_GetWindowID(tb->window)) return;
@@ -201,80 +219,95 @@ void handle_toolbar_events(Toolbar* tb, SDL_Event* event) {
         float my = event->button.y;
         Axes* current_ax = &tb->target_fig->axes[tb->active_axes_idx];
 
-        // Next Line
-        if (mx >= tb->next_line_btn.rect.x && mx <= tb->next_line_btn.rect.x + tb->next_line_btn.rect.w &&
-            my >= tb->next_line_btn.rect.y && my <= tb->next_line_btn.rect.y + tb->next_line_btn.rect.h) {
-            tb->active_line_idx = (tb->active_line_idx + 1) % current_ax->line_count;
+        // --- Graph Navigation Logic ---
+        // Previous Graph
+        if (mx >= 25 && mx <= 55 && my >= 10 && my <= 35) {
+            tb->active_axes_idx--;
+            if (tb->active_axes_idx < 0) {
+                tb->active_axes_idx = tb->target_fig->axes_count - 1;
+            }
+            tb->active_line_idx = 0; // Reset to first line of the new graph
         }
 
-        // Previous Line
-        if (mx >= tb->prev_line_btn.rect.x && mx <= tb->prev_line_btn.rect.x + tb->prev_line_btn.rect.w &&
-            my >= tb->prev_line_btn.rect.y && my <= tb->prev_line_btn.rect.y + tb->prev_line_btn.rect.h) {
-            tb->active_line_idx--;
-            if (tb->active_line_idx < 0) tb->active_line_idx = current_ax->line_count - 1;
+        // Next Graph
+        if (mx >= 195 && mx <= 225 && my >= 10 && my <= 35) {
+            tb->active_axes_idx = (tb->active_axes_idx + 1) % tb->target_fig->axes_count;
+            tb->active_line_idx = 0; // Reset to first line of the new graph
         }
 
-        // 1. Color Swatches
-        for (int i = 0; i < 3; i++) {
-            SDL_FRect* r = &tb->color_swatches[i].rect;
-            if (mx >= r->x && mx <= r->x + r->w && my >= r->y && my <= r->y + r->h) {
-                // tb->target_fig->axes[0].lines[0].color = tb->color_swatches[i].color;
-                tb->target_fig->axes[tb->active_axes_idx].lines[tb->active_line_idx].color = tb->color_swatches[i].color;
+        if (current_ax->line_count > 0) {
+            // Next Line
+            if (SDL_PointInRect(&(SDL_Point){(int)mx, (int)my}, &(SDL_Rect){(int)tb->next_line_btn.rect.x, (int)tb->next_line_btn.rect.y, (int)tb->next_line_btn.rect.w, (int)tb->next_line_btn.rect.h})) {
+                tb->active_line_idx = (tb->active_line_idx + 1) % current_ax->line_count;
+            }
+            // Previous Line
+            else if (SDL_PointInRect(&(SDL_Point){(int)mx, (int)my}, &(SDL_Rect){(int)tb->prev_line_btn.rect.x, (int)tb->prev_line_btn.rect.y, (int)tb->prev_line_btn.rect.w, (int)tb->prev_line_btn.rect.h})) {
+                tb->active_line_idx = (tb->active_line_idx > 0) ? tb->active_line_idx - 1 : current_ax->line_count - 1;
             }
         }
 
+        // --- SECTION C: Logic for Selected Line ---
+        // Only allow changes if the current graph actually has lines
+        if (current_ax->line_count > 0) {
+
+            // Color Swatches
+            for (int i = 0; i < 3; i++) {
+                SDL_FRect* r = &tb->color_swatches[i].rect;
+                if (mx >= r->x && mx <= r->x + r->w && my >= r->y && my <= r->y + r->h) {
+                    tb->target_fig->axes[tb->active_axes_idx].lines[tb->active_line_idx].color = tb->color_swatches[i].color;
+                }
+            }
+
+            // Style Buttons
+            for (int i = 0; i < 3; i++) {
+                SDL_FRect r = tb->buttons[i].rect;
+                // Check if mouse is inside the button rectangle
+                if (mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h) {
+                    if (current_ax->line_count > 0) {
+                        current_ax->lines[tb->active_line_idx].style = tb->buttons[i].action_id;
+                    }
+                }
+            }
+
+            // Slider Handle (Initial Click)
+            SDL_FRect h = tb->thickness_slider.handle;
+            if (mx >= h.x && mx <= h.x + h.w && my >= h.y && my <= h.y + h.h) {
+                tb->thickness_slider.is_dragging = true;
+            }
+
+
+        }
+        // Grid
+        SDL_FRect gt = tb->grid_toggle.rect;
+        if (mx >= gt.x && mx <= gt.x + gt.w && my >= gt.y && my <= gt.y + gt.h) {
+            // Toggle grid for all axes in the figure May wish to change in the future
+            for (int i = 0; i < tb->target_fig->axes_count; i++) {
+                tb->target_fig->axes[i].show_grid = !tb->target_fig->axes[i].show_grid;
+            }
+        }
         // 2. Save Button
         SDL_FRect* sr = &tb->save_button.rect;
         if (mx >= sr->x && mx <= sr->x + sr->w && my >= sr->y && my <= sr->y + sr->h) {
             save_figure_as_png(tb->target_fig, "my_graph.png");
         }
-
-
-        SDL_FRect gt = tb->grid_toggle.rect;
-
-        if (mx >= gt.x && mx <= gt.x + gt.w && my >= gt.y && my <= gt.y + gt.h) {
-            // Toggle grid for all axes in the figure
-            for (int i = 0; i < tb->target_fig->axes_count; i++) {
-                tb->target_fig->axes[i].show_grid = !tb->target_fig->axes[i].show_grid;
-            }
-        }
-
-        // Check handle click for Slider
-        SDL_FRect h = tb->thickness_slider.handle;
-        if (mx >= h.x && mx <= h.x + h.w && my >= h.y && my <= h.y + h.h) {
-            tb->thickness_slider.is_dragging = true;
-        }
-
-        // Style buttons
-        for (int i = 0; i < 3; i++) {
-            SDL_FRect r = tb->buttons[i].rect;
-            // Check if mouse is inside the button rectangle
-            if (mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h) {
-                if (current_ax->line_count > 0) {
-                    current_ax->lines[tb->active_line_idx].style = tb->buttons[i].action_id;
-                    printf("Changed Line %d style to: %s\n", 
-                            tb->active_line_idx + 1, tb->buttons[i].label);
-                }
-            }
-        }
     }
-
-    // 2. SLIDER DRAGGING (Thickness)
+    // --- 2. MOUSE MOTION (Slider Dragging) ---
     if (event->type == SDL_EVENT_MOUSE_MOTION && tb->thickness_slider.is_dragging) {
         float mx = event->motion.x;
         GraphSlider* s = &tb->thickness_slider;
+        Axes* current_ax = &tb->target_fig->axes[tb->active_axes_idx];
 
-        // Constraint within track
-        if (mx < s->track.x) mx = s->track.x;
-        if (mx > s->track.x + s->track.w) mx = s->track.x + s->track.w;
+        if (current_ax->line_count > 0) {
+            // Constraint within track
+            if (mx < s->track.x) mx = s->track.x;
+            if (mx > s->track.x + s->track.w) mx = s->track.x + s->track.w;
 
-        // Update handle position
-        s->handle.x = mx - (s->handle.w / 2.0f);
-        
-        // Calculate normalized value (0.0 to 1.0) and map to thickness (1.0 to 10.0)
-        s->value = (mx - s->track.x) / s->track.w;
-        float new_thickness = 1.0f + (s->value * 9.0f);
-        tb->target_fig->axes[tb->active_axes_idx].lines[tb->active_line_idx].thickness = new_thickness;
+            s->handle.x = mx - (s->handle.w / 2.0f);
+            s->value = (mx - s->track.x) / s->track.w;
+            
+            float new_thickness = 1.0f + (s->value * 9.0f);
+            current_ax->lines[tb->active_line_idx].thickness = new_thickness;
+        }
     }
 
     if (event->type == SDL_EVENT_MOUSE_BUTTON_UP) {

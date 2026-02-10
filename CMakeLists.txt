@@ -57,3 +57,5 @@ add_graph_example(demo_simple examples/simple.c)
 add_graph_example(demo_grid examples/grid.c)
 add_graph_example(demo_toolbar examples/simple_toolbar.c)
 add_graph_example(demo_toolbar_multi examples/multi_toolbar.c)
+add_graph_example(demo_multi_subplot_w_toolbar examples/multi_subplot_w_toolbar.c)
+
