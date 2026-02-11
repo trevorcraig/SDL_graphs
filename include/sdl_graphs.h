@@ -3,13 +3,15 @@
 
 #include <SDL3/SDL.h>
 #include <SDL3_ttf/SDL_ttf.h>
-// Represents a single line plot
-typedef struct {
-    float* x;
-    float* y;
-    int count;
-    SDL_Color color;
-} Line;
+
+#ifndef M_PI
+    #define M_PI 3.14159265358979323846
+#endif
+
+typedef enum {
+    PROJECTION_2D=0,
+    PROJECTION_3D
+} ProjectionType;
 
 typedef enum {
     STYLE_SOLID,
@@ -25,6 +27,7 @@ typedef enum {
 typedef struct {
     float* x;
     float* y;
+    float* z; //Getting into the z axis wooo
     int count;
     SDL_Color color;
     PlotType type;    // Added to distinguish between lines and dots
@@ -37,18 +40,25 @@ typedef struct {
 // The "Axes" - handles coordinates and drawing
 typedef struct {
     SDL_FRect rect;       // Position on screen
+    ProjectionType projection;
     Series* lines;
     int line_count;
     // Titles
     const char* title;
     const char* x_label;
     const char* y_label;
+    const char* z_label;
     float x_min, x_max;   // Data limits
     float y_min, y_max;
+    float z_min, z_max;
     // Position relative to window (0.0 to 1.0)
     float rel_x, rel_y, rel_w, rel_h; 
     bool show_grid;
     bool show_legend;
+    // Camera state for 3D
+    float phi;   // Azimuthal angle (rotation around Z)
+    float theta; // Elevation angle (angle from Z-axis)
+    float zoom;
 } Axes;
 
 // The "Figure" - the top level container
@@ -81,5 +91,11 @@ void set_title(Axes* ax, const char* title);
 void destroy_figure(Figure* fig);
 void show(Figure* fig);
 void save_figure_as_png(Figure* fig, const char* filename);
+void plot3D(Axes* ax, float* x, float* y, float* z, int count, SDL_Color color);
+void set_projection(Axes* ax, ProjectionType proj);
+void render_axes_2d(SDL_Renderer* renderer, TTF_Font* font, Axes* ax);
+void render_axes_3d(SDL_Renderer* renderer, TTF_Font* font, Axes* ax);
+static void project_3d(Axes* ax, float x, float y, float z, float* px, float* py);
+void draw_3d_box(SDL_Renderer* renderer, Axes* ax);
 
 #endif

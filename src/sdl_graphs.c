@@ -39,18 +39,25 @@ Figure* subplots(const char* title, int width, int height, int num_axes) {
     fig->axes_count = num_axes;
     fig->axes = malloc(sizeof(Axes) * num_axes);
     
+    
     for(int i = 0; i < num_axes; i++) {
         fig->axes[i].line_count = 0;
         fig->axes[i].lines = NULL;
         fig->axes[i].title = title; // Note: All subplots start with the Figure title
         fig->axes[i].x_label = NULL;
-        fig->axes[i].y_label = NULL;        
+        fig->axes[i].y_label = NULL;  
+        fig->axes[i].z_label = NULL;        
         fig->axes[i].show_grid = false;
         fig->axes[i].show_legend = false;
+        fig->axes[i].projection = PROJECTION_2D;
         
         // Corrected indexing here:
         fig->axes[i].x_min = 1e38f;  fig->axes[i].x_max = -1e38f; 
         fig->axes[i].y_min = 1e38f;  fig->axes[i].y_max = -1e38f;
+        fig->axes[i].phi = 0.0f;
+        fig->axes[i].theta = 0.0f;
+        fig->axes[i].zoom = 1.0f;
+        fig->axes[i].z_min = 1e38f;  fig->axes[i].z_max = -1e38f;
     }
 
     update_layout(fig, width, height); 
@@ -96,6 +103,49 @@ void plot(Axes* ax, float* x, float* y, int count, SDL_Color color) {
 }
 
 /**
+ * @brief Adds a 3D line plot to the axes.
+ * Matches Matplotlib's ax.plot3D(x, y, z)
+ */
+void plot3D(Axes* ax, float* x, float* y, float* z, int count, SDL_Color color) {
+    if (!ax || !x || !y || !z || count <= 0) return;
+
+    // Ensure projection is 3D
+    if (ax->projection != PROJECTION_3D) {
+        set_projection(ax, PROJECTION_3D);
+    }
+
+    // Create new series
+    ax->lines = realloc(ax->lines, sizeof(Series) * (ax->line_count + 1));
+    Series* s = &ax->lines[ax->line_count];
+    s->x = x;
+    s->y = y;
+    s->z = z; 
+    s->count = count;
+    s->color = color;
+    s->type = PLOT_LINE;
+    s->thickness = 2.0f;
+    s->style = STYLE_SOLID;
+    ax->line_count++;
+    strncpy(s->label, "Series", 32);
+    // --- Auto-scale bounds ---
+    for (int i = 0; i < count; i++) {
+
+        if (x[i] < ax->x_min) ax->x_min = x[i];
+        if (x[i] > ax->x_max) ax->x_max = x[i];
+
+        if (y[i] < ax->y_min) ax->y_min = y[i];
+        if (y[i] > ax->y_max) ax->y_max = y[i];
+
+        if (z[i] < ax->z_min) ax->z_min = z[i];
+        if (z[i] > ax->z_max) ax->z_max = z[i];
+    }
+    // Safety: prevent zero ranges (avoids divide-by-zero in projection)
+    if (ax->x_max == ax->x_min) ax->x_max += 1.0f;
+    if (ax->y_max == ax->y_min) ax->y_max += 1.0f;
+    if (ax->z_max == ax->z_min) ax->z_max += 1.0f;
+}
+
+/**
  * @brief Adds a scatter plot to the specified Axes.
  * * This function utilizes the standard plot logic to register data and calculate 
  * auto-scaling limits, but sets the rendering type to discrete markers instead 
@@ -119,24 +169,22 @@ void scatter(Axes* ax, float* x, float* y, int count, SDL_Color color, float siz
     s->marker_size = size;
 }
 
-
-/**
- * @brief Performs the actual rendering of the axes, data, and metadata.
- * * This function should be called within the main render loop. It follows a specific
- * layering order to ensure visual clarity:
- * 1. Draws the plot background and border.
- * 2. Calculates dynamic scaling based on data limits and padding.
- * 3. Renders axis ticks, numerical labels, and the optional grid.
- * 4. Iterates through all Series to draw lines (solid/dashed) or scatter points.
- * 5. Overlays the legend and axis titles (Title, xlabel, ylabel).
- *
- * @param renderer The active SDL_Renderer.
- * @param font     The TTF_Font used for all text rendering in the plot.
- * @param ax       Pointer to the Axes object containing the data and configuration.
- * * @note This function handles coordinate transformation, mapping raw data values 
- * to screen pixels using the Axes' bounding box (rect).
+ /**
+ * @brief Performs 2D rendering of axes, grid lines, data series, and labels.
+ * * This function follows a strict layering order to ensure visual clarity:
+ * 1. **Background**: Draws the plot area and border.
+ * 2. **Scaling**: Calculates normalization factors with 10% padding for data breathing room.
+ * 3. **Axes & Grid**: Renders numerical ticks and optional light-gray grid lines.
+ * 4. **Data Plotting**: Iterates through series to render either thick lines (solid/dashed) 
+ * or scatter plot markers.
+ * 5. **Annotations**: Overlays the legend and titles (Main, X, and Y).
+ * * @param renderer The active SDL_Renderer.
+ * @param font     The TTF_Font used for all text (labels, ticks, titles).
+ * @param ax       Pointer to the Axes object containing 2D data and configuration.
+ * * @note Coordinate mapping: Screen Y is inverted relative to data Y because SDL's 
+ * origin (0,0) is at the top-left.
  */
-void render_axes(SDL_Renderer* renderer, TTF_Font* font, Axes* ax) {
+void render_axes_2d(SDL_Renderer* renderer, TTF_Font* font, Axes* ax) {
     const int tick_count = 5;
     const float tick_size = 5.0f;
     const SDL_Color text_color = {0, 0, 0, 255};
@@ -252,6 +300,78 @@ void render_axes(SDL_Renderer* renderer, TTF_Font* font, Axes* ax) {
         draw_text(renderer, font, ax->y_label, 
                 ax->rect.x - 60, 
                 ax->rect.y + (ax->rect.h / 2.0f), false, black);
+    }
+}
+
+/**
+ * @brief Renders 3D data series within a projected wireframe "cage".
+ * * Unlike the 2D renderer, this function utilizes a projection engine to map 
+ * (x, y, z) coordinates into 2D screen space based on the camera's current 
+ * rotation (phi and theta).
+ * * **Process:**
+ * 1. **Cage**: Renders a 3D bounding box to provide a spatial reference.
+ * 2. **Projection**: Iterates through series, projecting each 3D point to a screen 
+ * pixel using `project_3d`.
+ * 3. **Line Strips**: Connects projected points to form 3D paths.
+ * 4. **Z-Labeling**: Places the Z-axis title at a projected anchor point relative to the cage.
+ * * @param renderer The active SDL_Renderer.
+ * @param font     The TTF_Font used for text rendering.
+ * @param ax       Pointer to the Axes object (must have PROJECTION_3D enabled).
+ * * @see project_3d, draw_3d_box
+ */
+void render_axes_3d(SDL_Renderer* renderer, TTF_Font* font, Axes* ax) {
+    // 1. Draw the Bounding Box (The "Cage")
+    draw_3d_box(renderer, ax);
+
+    // 2. Render each 3D Series
+    for (int i = 0; i < ax->line_count; i++) {
+        Series* s = &ax->lines[i];
+        if (s->count < 2) continue;
+
+        // Set the series color
+        SDL_SetRenderDrawColor(renderer, s->color.r, s->color.g, s->color.b, s->color.a);
+
+        for (int j = 0; j < s->count - 1; j++) {
+            float x1, y1, x2, y2;
+
+            // Project the current point and the next point
+            project_3d(ax, s->x[j], s->y[j], s->z[j], &x1, &y1);
+            project_3d(ax, s->x[j+1], s->y[j+1], s->z[j+1], &x2, &y2);
+            SDL_RenderLine(renderer, x1, y1, x2, y2);
+        }
+    }
+
+    float lx, ly;
+    SDL_Color label_color = {0, 0, 0, 255};
+    // X label
+    project_3d(ax, (ax->x_min + ax->x_max) * 0.5f, ax->y_min, ax->z_min, &lx, &ly);
+    draw_text(renderer, font, ax->x_label, lx, ly + 30, false, label_color);
+
+    // Y label
+    project_3d(ax, ax->x_max, (ax->y_min + ax->y_max) * 0.5f, ax->z_min, &lx, &ly);
+    draw_text(renderer, font, ax->y_label, lx + 35, ly + 15, false, label_color);
+
+    // Z label
+    project_3d(ax, ax->x_min, ax->y_min, (ax->z_min + ax->z_max) * 0.5f, &lx, &ly);
+    draw_text(renderer, font, ax->z_label, lx - 40, ly, false, label_color);
+
+}
+
+/**
+ * @brief High-level dispatcher that renders an Axes object based on its projection type.
+ * * This acts as the primary interface for the Figure rendering loop. It inspects 
+ * the Axes' `projection` member and routes the rendering task to either the 
+ * 2D or 3D specific implementation.
+ * * @param renderer The active SDL_Renderer.
+ * @param font     The TTF_Font used for rendering.
+ * @param ax       Pointer to the Axes object to be drawn.
+ * * @note This abstraction allows a single Figure to contain a mix of 2D and 3D subplots.
+ */
+void render_axes(SDL_Renderer* renderer, TTF_Font* font, Axes* ax) {
+    if (ax->projection == PROJECTION_3D) {
+        render_axes_3d(renderer, font, ax);
+    } else {
+        render_axes_2d(renderer, font, ax);
     }
 }
 
@@ -735,6 +855,25 @@ void show(Figure* fig) {
                     update_layout(fig, event.window.data1, event.window.data2);
                 }
             }
+
+            if (event.type == SDL_EVENT_MOUSE_MOTION) {
+                // Check if left mouse button is held down
+                if (event.motion.state & SDL_BUTTON_LMASK) {
+                    // We only want to rotate the axes the mouse is actually over
+                    for (int i = 0; i < fig->axes_count; i++) {
+                        Axes* ax = &fig->axes[i];
+                        if (ax->projection == PROJECTION_3D) {
+                            // Sensitivity: 0.5 degrees per pixel moved
+                            ax->phi   += event.motion.xrel * 0.5f; 
+                            ax->theta -= event.motion.yrel * 0.5f;
+                            
+                            // Keep theta within reasonable bounds so the graph doesn't flip
+                            if (ax->theta > 89.0f) ax->theta = 89.0f;
+                            if (ax->theta < -89.0f) ax->theta = -89.0f;
+                        }
+                    }
+                }
+            }
         }
 
         // --- RENDER GRAPH WINDOW ---
@@ -785,5 +924,121 @@ void save_figure_as_png(Figure* fig, const char* filename) {
         SDL_DestroySurface(surface);
     } else {
         fprintf(stderr, "Failed to read pixels: %s\n", SDL_GetError());
+    }
+}
+
+/**
+ * @brief Configures the projection type for a specific set of axes.
+ * * If the projection is set to PROJECTION_3D, this function initializes the 
+ * camera orientation (phi/theta) to standard Matplotlib-style defaults, 
+ * resets the zoom level, and establishes baseline Z-axis boundaries and labels.
+ * * @param[in,out] ax   Pointer to the Axes structure to modify.
+ * @param[in]     proj The desired projection type (PROJECTION_2D or PROJECTION_3D).
+ * * @note Default 3D view angles are set to an Azimuth (phi) of 300° and 
+ * an Elevation (theta) of 30° to provide a clear isometric-like perspective.
+ */
+void set_projection(Axes* ax, ProjectionType proj) {
+    if (!ax) return;
+    
+    ax->projection = proj;
+    
+    if (proj == PROJECTION_3D) {
+        ax->phi = 300.0f;
+        ax->theta = 30.0f; 
+        ax->zoom = 1.0f;
+        
+        // Initialize Z bounds to something sensible
+        ax->z_min = -1.0f;
+        ax->z_max = 1.0f;
+        ax->x_label= "X-Axis";
+        ax->y_label= "Y-Axis";
+        ax->z_label= "Z-Axis";
+    }
+}
+
+
+/**
+ * @brief Projects 3D data coordinates into 2D screen space using orthographic projection.
+ * * This transformation follows a four-step pipeline:
+ * 1. **Normalization**: Maps raw data (x, y, z) to a canonical cube range of [-1.0, 1.0].
+ * 2. **Rotation (Azimuth)**: Rotates the point around the Z-axis by the angle 'phi'.
+ * 3. **Rotation (Elevation)**: Rotates the resulting point around the X-axis by the angle 'theta'.
+ * 4. **Screen Mapping**: Scales the rotated 3D point and offsets it to the center of the 
+ * Axes' viewport, flipping the Y-axis to match SDL's coordinate system.
+ * * @param[in]  ax Pointer to the Axes containing the 3D bounds and camera state.
+ * @param[in]  x  The raw X data coordinate.
+ * @param[in]  y  The raw Y data coordinate.
+ * @param[in]  z  The raw Z data coordinate.
+ * @param[out] px Pointer to store the resulting screen X-coordinate.
+ * @param[out] py Pointer to store the resulting screen Y-coordinate.
+ * * @note This function uses an orthographic projection, meaning parallel lines in 3D 
+ * space remain parallel on screen (no perspective foreshortening).
+ */
+static void project_3d(Axes* ax, float x, float y, float z, float* px, float* py) {
+    // 1. Normalize coordinates to a -1.0 to 1.0 range based on ax bounds
+    float nx = 2.0f * (x - ax->x_min) / (ax->x_max - ax->x_min) - 1.0f;
+    float ny = 2.0f * (y - ax->y_min) / (ax->y_max - ax->y_min) - 1.0f;
+    float nz = 2.0f * (z - ax->z_min) / (ax->z_max - ax->z_min) - 1.0f;
+
+    // 2. Convert angles to radians
+    float rad_phi = ax->phi * (M_PI / 180.0f);
+    float rad_theta = ax->theta * (M_PI / 180.0f);
+
+    // 3. Apply Rotation (Azimuth/Elevation)
+    // Rotate around Z (Azimuth)
+    float x1 = nx * cosf(rad_phi) - ny * sinf(rad_phi);
+    float y1 = nx * sinf(rad_phi) + ny * cosf(rad_phi);
+    
+    // Rotate around X (Elevation)
+    float x2 = x1;
+    float y2 = y1 * cosf(rad_theta) - nz * sinf(rad_theta);
+    float z2 = y1 * sinf(rad_theta) + nz * cosf(rad_theta);
+
+    // 4. Project to 2D screen space
+    // Center of the axes area
+    float cx = ax->rect.x + ax->rect.w / 2.0f;
+    float cy = ax->rect.y + ax->rect.h / 2.0f;
+    
+    // Scale the projected points to fit the screen area
+    float scale = (ax->rect.w < ax->rect.h ? ax->rect.w : ax->rect.h) * 0.4f * ax->zoom;
+
+    *px = cx + x2 * scale;
+    *py = cy - y2 * scale; // Subtract because SDL Y-axis goes down
+}
+
+/**
+ * @brief Renders a wireframe bounding box (cage) for a 3D plot.
+ * * This function calculates the 8 corners of the 3D data space defined by the 
+ * Axes' min/max bounds, projects them into 2D screen space, and draws the 
+ * connecting edges to form a cube. This "cage" provides necessary depth 
+ * cues for the user to interpret the 3D data.
+ * * @param renderer The SDL_Renderer used for drawing lines.
+ * @param ax       Pointer to the Axes struct containing 3D bounds and 
+ * camera rotation state (phi/theta).
+ * * @note This function connects:
+ * - 4 edges for the bottom face (z_min)
+ * - 4 edges for the top face (z_max)
+ * - 4 vertical edges connecting top and bottom faces.
+ */
+void draw_3d_box(SDL_Renderer* renderer, Axes* ax) {
+    float corners[8][3] = {
+        {ax->x_min, ax->y_min, ax->z_min}, {ax->x_max, ax->y_min, ax->z_min},
+        {ax->x_max, ax->y_max, ax->z_min}, {ax->x_min, ax->y_max, ax->z_min},
+        {ax->x_min, ax->y_min, ax->z_max}, {ax->x_max, ax->y_min, ax->z_max},
+        {ax->x_max, ax->y_max, ax->z_max}, {ax->x_min, ax->y_max, ax->z_max}
+    };
+
+    float px[8], py[8];
+    for (int i = 0; i < 8; i++) {
+        project_3d(ax, corners[i][0], corners[i][1], corners[i][2], &px[i], &py[i]);
+    }
+
+    SDL_SetRenderDrawColor(renderer, 200, 200, 200, 255); // Light gray cage
+    
+    // Connect bottom 4, top 4, and vertical 4
+    for (int i = 0; i < 4; i++) {
+        SDL_RenderLine(renderer, px[i], py[i], px[(i+1)%4], py[(i+1)%4]);         // Bottom
+        SDL_RenderLine(renderer, px[i+4], py[i+4], px[((i+1)%4)+4], py[((i+1)%4)+4]); // Top
+        SDL_RenderLine(renderer, px[i], py[i], px[i+4], py[i+4]);               // Verticals
     }
 }
