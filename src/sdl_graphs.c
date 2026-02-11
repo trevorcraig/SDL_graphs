@@ -33,6 +33,7 @@ Figure* subplots(const char* title, int width, int height, int num_axes) {
     // fig->renderer = SDL_CreateRenderer(fig->window, "direct3d12"); //was NULL orginally but direct3d11 which has an issue
     SDL_SetHint(SDL_HINT_RENDER_DRIVER, "direct3d12"); //direct3d11 has an issue that causes ocassional crashes
     fig->renderer = SDL_CreateRenderer(fig->window, NULL); //opengl is the best option
+    SDL_SetRenderDrawBlendMode(fig->renderer, SDL_BLENDMODE_BLEND); // Ensure it to be true
     fig->font = TTF_OpenFont("PTC55F.ttf", 16);
     fig->toolbar = NULL;
     fig->axes_count = num_axes;
@@ -503,7 +504,7 @@ void render_legend(SDL_Renderer* renderer, TTF_Font* font, Axes* ax) {
     float box_y = ax->rect.y + padding;
 
     // 2. Draw Legend Background (Semi-transparent white)
-    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
+    // SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND); // Ensured now in subplots
     SDL_SetRenderDrawColor(renderer, 255, 255, 255, 180);
     SDL_FRect legend_rect = { box_x, box_y, box_w, box_h };
     SDL_RenderFillRect(renderer, &legend_rect);

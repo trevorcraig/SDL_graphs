@@ -8,7 +8,6 @@ int main(int argc, char* argv[]) {
 
     // 1. Emulate: fig, ax = plt.subplots()
     Figure* fig = subplots("Main Example", 800, 600,2);
-    SDL_SetRenderDrawBlendMode(fig->renderer, SDL_BLENDMODE_BLEND);
     set_grid(&fig->axes[0], true); // Turn it on!
     
     

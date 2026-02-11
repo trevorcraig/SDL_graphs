@@ -25,6 +25,7 @@
  */
 Toolbar* create_toolbar(Figure* target) {
     Toolbar* tb = malloc(sizeof(Toolbar));
+    if (!tb) return NULL;
     tb->target_fig = target;
     tb->running = true;
     tb->thickness_slider.track = (SDL_FRect){25, 270, 200, 10};
@@ -36,7 +37,23 @@ Toolbar* create_toolbar(Figure* target) {
 
     // Create a small side-window
     tb->window = SDL_CreateWindow("Graph Controls", 250, 500, 0);
+    if (!tb->window) { free(tb); return NULL; }
     tb->renderer = SDL_CreateRenderer(tb->window, NULL);
+    if (!tb->renderer) {
+        SDL_DestroyWindow(tb->window);
+        free(tb);
+        return NULL;
+    }
+    SDL_SetRenderDrawBlendMode(tb->renderer, SDL_BLENDMODE_BLEND);
+
+    // SDL_FRect prev_ax_rect = { 25, 10, 30, 25 };
+    // SDL_FRect next_ax_rect = { 195, 10, 30, 25 };
+
+    tb->prev_ax_btn.rect = (SDL_FRect){25, 10, 40, 30};
+    tb->prev_ax_btn.label = "<";
+
+    tb->next_ax_btn.rect = (SDL_FRect){195, 10, 40, 30};
+    tb->next_ax_btn.label = ">";
 
     tb->prev_line_btn.rect = (SDL_FRect){25, 50, 40, 30};
     tb->prev_line_btn.label = "<";
@@ -94,20 +111,19 @@ void render_toolbar(Toolbar* tb, TTF_Font* font) {
     Axes* cur_ax = &tb->target_fig->axes[tb->active_axes_idx];
 
     // --- SECTION 1: GRAPH NAVIGATOR (Top Row) ---
-    SDL_SetRenderDrawColor(tb->renderer, 180, 180, 180, 255); // Slightly different gray
-    SDL_FRect prev_ax_rect = { 25, 10, 30, 25 };
-    SDL_FRect next_ax_rect = { 195, 10, 30, 25 };
-    SDL_RenderFillRect(tb->renderer, &prev_ax_rect);
-    SDL_RenderFillRect(tb->renderer, &next_ax_rect);
-    draw_text(tb->renderer, font, "<", prev_ax_rect.x + 15, prev_ax_rect.y + 15, false, black);
-    draw_text(tb->renderer, font, ">", next_ax_rect.x + 15, next_ax_rect.y + 15, false, black);
+
+    SDL_SetRenderDrawColor(tb->renderer, 200, 200, 200, 255);
+    SDL_RenderFillRect(tb->renderer, &tb->prev_ax_btn.rect);
+    SDL_RenderFillRect(tb->renderer, &tb->next_ax_btn.rect);
+    draw_text(tb->renderer, font, tb->prev_ax_btn.label, tb->prev_ax_btn.rect.x + 15, tb->prev_ax_btn.rect.y + 15, false, black);
+    draw_text(tb->renderer, font, tb->next_ax_btn.label, tb->next_ax_btn.rect.x + 15, tb->next_ax_btn.rect.y + 15, false, black);
 
     char ax_text[32];
     sprintf(ax_text, "Graph %d / %d", tb->active_axes_idx + 1, tb->target_fig->axes_count);
     draw_text(tb->renderer, font, ax_text, 112, 22, false, black);    
 
     // --- Render Line Navigator ---
-    SDL_SetRenderDrawColor(tb->renderer, 200, 200, 200, 255);
+    // SDL_SetRenderDrawColor(tb->renderer, 200, 200, 200, 255);
     SDL_RenderFillRect(tb->renderer, &tb->prev_line_btn.rect);
     SDL_RenderFillRect(tb->renderer, &tb->next_line_btn.rect);
     draw_text(tb->renderer, font, tb->prev_line_btn.label, tb->prev_line_btn.rect.x + 15, tb->prev_line_btn.rect.y + 15, false, black);
@@ -221,7 +237,7 @@ void handle_toolbar_events(Toolbar* tb, SDL_Event* event) {
 
         // --- Graph Navigation Logic ---
         // Previous Graph
-        if (mx >= 25 && mx <= 55 && my >= 10 && my <= 35) {
+        if (point_in_frect(mx, my, tb->prev_ax_btn.rect)){
             tb->active_axes_idx--;
             if (tb->active_axes_idx < 0) {
                 tb->active_axes_idx = tb->target_fig->axes_count - 1;
@@ -230,18 +246,17 @@ void handle_toolbar_events(Toolbar* tb, SDL_Event* event) {
         }
 
         // Next Graph
-        if (mx >= 195 && mx <= 225 && my >= 10 && my <= 35) {
+        if (point_in_frect(mx, my, tb->next_ax_btn.rect)){
             tb->active_axes_idx = (tb->active_axes_idx + 1) % tb->target_fig->axes_count;
             tb->active_line_idx = 0; // Reset to first line of the new graph
         }
 
         if (current_ax->line_count > 0) {
             // Next Line
-            if (SDL_PointInRect(&(SDL_Point){(int)mx, (int)my}, &(SDL_Rect){(int)tb->next_line_btn.rect.x, (int)tb->next_line_btn.rect.y, (int)tb->next_line_btn.rect.w, (int)tb->next_line_btn.rect.h})) {
+            if (point_in_frect(mx, my, tb->next_line_btn.rect)){
                 tb->active_line_idx = (tb->active_line_idx + 1) % current_ax->line_count;
             }
-            // Previous Line
-            else if (SDL_PointInRect(&(SDL_Point){(int)mx, (int)my}, &(SDL_Rect){(int)tb->prev_line_btn.rect.x, (int)tb->prev_line_btn.rect.y, (int)tb->prev_line_btn.rect.w, (int)tb->prev_line_btn.rect.h})) {
+            else if(point_in_frect(mx, my, tb->prev_line_btn.rect)){
                 tb->active_line_idx = (tb->active_line_idx > 0) ? tb->active_line_idx - 1 : current_ax->line_count - 1;
             }
         }
@@ -252,17 +267,17 @@ void handle_toolbar_events(Toolbar* tb, SDL_Event* event) {
 
             // Color Swatches
             for (int i = 0; i < 3; i++) {
-                SDL_FRect* r = &tb->color_swatches[i].rect;
-                if (mx >= r->x && mx <= r->x + r->w && my >= r->y && my <= r->y + r->h) {
-                    tb->target_fig->axes[tb->active_axes_idx].lines[tb->active_line_idx].color = tb->color_swatches[i].color;
-                }
+                if (point_in_frect(mx, my, tb->color_swatches[i].rect)){
+                    if (current_ax->line_count > 0) {
+                        tb->target_fig->axes[tb->active_axes_idx].lines[tb->active_line_idx].color = tb->color_swatches[i].color;
+                    }
+                }                
             }
 
             // Style Buttons
             for (int i = 0; i < 3; i++) {
-                SDL_FRect r = tb->buttons[i].rect;
                 // Check if mouse is inside the button rectangle
-                if (mx >= r.x && mx <= r.x + r.w && my >= r.y && my <= r.y + r.h) {
+                if (point_in_frect(mx, my, tb->buttons[i].rect)){
                     if (current_ax->line_count > 0) {
                         current_ax->lines[tb->active_line_idx].style = tb->buttons[i].action_id;
                     }
@@ -270,24 +285,21 @@ void handle_toolbar_events(Toolbar* tb, SDL_Event* event) {
             }
 
             // Slider Handle (Initial Click)
-            SDL_FRect h = tb->thickness_slider.handle;
-            if (mx >= h.x && mx <= h.x + h.w && my >= h.y && my <= h.y + h.h) {
+            if (point_in_frect(mx, my, tb->thickness_slider.handle)){
                 tb->thickness_slider.is_dragging = true;
-            }
-
+            }              
+            // Allow anywhere to be part of the drag
+            if (point_in_frect(mx, my, tb->thickness_slider.track)){
+                tb->thickness_slider.is_dragging = true;
+            }            
 
         }
         // Grid
-        SDL_FRect gt = tb->grid_toggle.rect;
-        if (mx >= gt.x && mx <= gt.x + gt.w && my >= gt.y && my <= gt.y + gt.h) {
-            // Toggle grid for all axes in the figure May wish to change in the future
-            for (int i = 0; i < tb->target_fig->axes_count; i++) {
-                tb->target_fig->axes[i].show_grid = !tb->target_fig->axes[i].show_grid;
-            }
+        if (point_in_frect(mx, my, tb->grid_toggle.rect)){
+            current_ax->show_grid = !current_ax->show_grid;
         }
         // 2. Save Button
-        SDL_FRect* sr = &tb->save_button.rect;
-        if (mx >= sr->x && mx <= sr->x + sr->w && my >= sr->y && my <= sr->y + sr->h) {
+        if (point_in_frect(mx, my, tb->save_button.rect)){
             save_figure_as_png(tb->target_fig, "my_graph.png");
         }
     }
@@ -339,4 +351,20 @@ void destroy_toolbar(Toolbar* tb) {
     free(tb);
     
     printf("Toolbar resources cleaned up.\n");
+}
+
+
+/**
+ * @brief Checks if a 2D point lies within the boundaries of a floating-point rectangle.
+ * * This is a lightweight helper function used for UI hit-detection (e.g., checking 
+ * if a mouse click landed on a button or a slider handle).
+ * * @param x The x-coordinate of the point (usually mouse X).
+ * @param y The y-coordinate of the point (usually mouse Y).
+ * @param r The SDL_FRect representing the target boundary.
+ * @return true If the point is inside or on the edge of the rectangle.
+ * @return false If the point is outside the rectangle.
+ */
+static inline bool point_in_frect(float x, float y, SDL_FRect r) {
+    return x >= r.x && x <= r.x + r.w &&
+           y >= r.y && y <= r.y + r.h;
 }

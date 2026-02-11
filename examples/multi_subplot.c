@@ -8,8 +8,6 @@ int main(int argc, char* argv[]) {
     // 1. Create the figure with 2 subplots
     Figure* fig = subplots("Multi_Subplot Test", 800, 600, 2);
     if (!fig) return -1;
-
-    SDL_SetRenderDrawBlendMode(fig->renderer, SDL_BLENDMODE_BLEND);
     
     // --- Data Setup ---
     float x_data[] = {1.0f, 2.0f, 3.0f, 4.0f};

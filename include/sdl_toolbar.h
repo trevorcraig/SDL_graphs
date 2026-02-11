@@ -32,6 +32,8 @@ typedef struct {
     int active_line_idx;
     GraphButton next_line_btn;
     GraphButton prev_line_btn;
+    GraphButton prev_ax_btn;
+    GraphButton next_ax_btn;
 } Toolbar;
 
 // Initializes and opens the small control window
@@ -45,5 +47,5 @@ void destroy_toolbar(Toolbar* tb);
 
 void render_toolbar(Toolbar* tb, TTF_Font* font);
 void handle_toolbar_events(Toolbar* tb, SDL_Event* event);
-
+static inline bool point_in_frect(float x, float y, SDL_FRect r);
 #endif
